@@ -1,146 +1,236 @@
 # coding=utf-8
 import re
-import numpy as np 
+import numpy as np
 import random
 import math
 import tqdm
 import codecs
 
-def generateindex(index):
-	if index < 10:
-		return "00"+str(index)
-	elif index <100:
-		return "0" + str(index)
-	else:
-		return str(index)
+class Dataset(object):
+	"""
+	build a reader class for readthe data
+	"""
+	def __init__(self, filename):
+		print("processing the words...")
+		self.filename = filename
+		self.emaillist = []
+		self.labels = []
+		self.spamtimes = 0
+		self.hamtimes = 0
+		self.Fromlist = []
+		self.timelist = []
 
-def getword(index1,index2):
-	path = "trec06c-utf8/data_cut/"+index1+"/"+index2
-	f = codecs.open(path,encoding='utf-8')
-	str = f.read()
-	str = re.sub(r"[\s：、。，,.;：；_★:()-?!@#^&$¥……（）◆\]\[]", " ", str)
-	str = re.sub(r"[a-zA-Z]"," ",str)
-	return str
+	def generateindex(self, index):
+		if index < 10:
+			return "00"+str(index)
+		elif index <100:
+			return "0" + str(index)
+		else:
+			return str(index)
 
-def get215word(index):
-	path = "trec06c-utf8/data_cut/215/"+index
-	f = codecs.open(path,encoding='utf-8')
-	str = f.read()
-	str = re.sub(r"[\s：、。，,.;：；_★:()-?!@#^&$¥……（）◆\]\[]", " ", str)
-	str = re.sub(r"[a-zA-Z]"," ",str)
-	return str
-emaillist = [] 
-labels = []
-trainindex = []
-testindex = []
+	def getword(self, index1, index2):
+		path = self.filename+'/data_cut/'+index1+"/"+index2
+		f = codecs.open(path,encoding='utf-8')
+		string = f.read()
+		string = re.sub(r"[\s：、。，,.;：；_★:()-?!@#^&$¥……（）◆\]\[]", " ", string)
+		string = re.sub(r"[a-zA-Z]"," ",string)
+		return string
 
-def decidetrain(randomseed, trainpercent):
-	global trainindex
-	global testindex
-	total = 215*300+119
-	indexlist = list(range(total))
-	random.shuffle(indexlist)
-	point_1 = int(total*trainpercent)
-	point = int(total/5*4)
-	trainindex = indexlist[0:point_1-1]
-	testindex = indexlist[point:-1]
+	def gettime(self, index1, index2):
+		path = self.filename+'/data_cut/'+index1+"/"+index2
+		f = codecs.open(path,encoding='utf-8')
+		string = f.readlines()
+		timestring = string[2]
+		timestring = re.findall("\d\d:\d\d:\d\d",timestring)
+		return timestring
 
-def getwordlist():
-	print("processing the words...")	
-	global emaillist
-	for i in tqdm.tqdm(range(215)):
-		j = 0
-		while j < 300:
-			str = getword(generateindex(i),generateindex(j))
-			content = str.split()
+	def getFrom(self, index1, index2):
+		
+		path = self.filename+'/data_cut/'+index1+"/"+index2
+		f = codecs.open(path,encoding='utf-8')
+		string = f.readlines()
+		i = 0
+		while string[i][:4] != "From":
+			i += 1
+			if i >= len(string):
+				return []
+		Fromstring = string[i]
+		Fromstring = re.findall("@\w*",Fromstring)
+		finalFromstring = Fromstring[1:]
+		print(finalFromstring)
+		return finalFromstring
+
+	def readlist(self):
+		for i in tqdm.tqdm(range(215)):
+			j = 0
+			while j < 300:
+				string = self.getword(self.generateindex(i),self.generateindex(j))
+				content = string.split()
+				content = [con for con in content if len(con) >= 2]
+				content = list(set(content))
+				self.emaillist.append(content)
+				j += 1
+		for i in range(120):
+			string = self.getword("215",self.generateindex(i))
+			content = string.split()
 			content = [con for con in content if len(con) >= 2]
-			emaillist.append(content)
-			j += 1
-			#if times % 1000 == 0:
-				#print("processing...finsihed %",times/215/3)
-	for i in range(120):
-		str = get215word(generateindex(i))
-		content = str.split()
-		content = [con for con in content if len(con) >= 2]
-		emaillist.append(content)
+			content = list(set(content))
+			self.emaillist.append(content)
+		return self.emaillist
 
-spamtimes = 0
-hamtimes = 0
-def getlabels():
-	path = "trec06c-utf8/label/index"
-	global labels
-	global spamtimes
-	global hamtimes
-	f = open(path)
-	lines = f.readlines()
-	for i in lines:
-		if i[0] == 's':
-			labels.append('0')
-			spamtimes += 1
-		else:
-			labels.append('1')
-			hamtimes += 1
-	return spamtimes,hamtimes
-spamdict ={}
-hamdict = {}
+	def gettimelist(self):
+		for i in tqdm.tqdm(range(215)):
+			j = 0
+			while j < 300:
+				timestring = self.gettime(self.generateindex(i),self.generateindex(j))
+				self.timelist.append(timestring)
+				j += 1
+		for i in range(120):
+			timestring = self.gettime("215",self.generateindex(i))
+			self.timelist.append(timestring)
+		return self.timelist
 
-def trainer():
-	global emaillist
-	global labels
-	global spamdict
-	global hamdict
-	for i in trainindex:
-		for word in emaillist[i]:
-			if labels[i] == '0':
-				if word in spamdict.keys():
-					spamdict[word] += 1
+	def getFromlist(self):
+		print("Loading the Receiver email address")
+		for i in tqdm.tqdm(range(215)):
+			j = 0
+			while j < 300:
+				print(i," ",j)
+				Fromstring = self.getFrom(self.generateindex(i),self.generateindex(j))
+				self.Fromlist.append(Fromstring)
+				j += 1
+		for i in range(120):
+			Fromtring = self.getFrom("215",self.generateindex(i))
+			self.Fromlist.append(Fromstring)
+		return self.Fromlist
+
+	def getlabels(self):
+		path = self.filename+"/label/index"
+		f = open(path)
+		lines = f.readlines()
+		for i in lines:
+			if i[0] == 's':
+				self.labels.append('0')
+				self.spamtimes += 1
+			else:
+				self.labels.append('1')
+				self.hamtimes += 1
+		return self.labels
+
+
+class Trainer(object):
+	def __init__(self,Dataset):
+		self.trainindex = []
+		self.testindex = []
+		self.spamdict = {}
+		self.hamdict = {}
+		self.emaillist = Dataset.readlist()
+		self.labels = Dataset.getlabels()
+		self.timelist = Dataset.gettimelist()
+		self.Fromlist = Dataset.getFromlist()
+		#print(self.timelist)
+		self.hamtimes = 0
+		self.spamtimes = 0
+		self.total = 215 * 300 + 119
+		self.indexlist = np.arange(self.total)
+		self.trainpercent = 1
+
+	def decidetrain(self, randomseed, trainpercent):
+		np.random.seed(randomseed)
+		np.random.shuffle(self.indexlist)
+		self.trainpercent = trainpercent
+
+	def cut(self,times):
+		point_1 = int(self.total * self.trainpercent/100)
+		point = point_1//5
+		self.testindex = self.indexlist[point*(times-1):point*times-1]
+		self.trainindex = np.append(self.indexlist[:point*(times-1)],self.indexlist[point*times:])
+		
+	def train(self):
+		for i in self.trainindex:
+			if self.labels[i] == '0':
+				self.spamtimes+=1
+			else:
+				self.hamtimes+=1
+			for word in self.emaillist[i]:
+				if self.labels[i] == '0':
+					if word in self.spamdict.keys():
+						self.spamdict[word] += 1
+					else:
+						self.spamdict[word] = 1
 				else:
-					spamdict[word] = 1
-			else:
-				if word in hamdict.keys():
-					hamdict[word] += 1
-				else:
-					hamdict[word] = 1
+					if word in self.hamdict.keys():
+						self.hamdict[word] += 1
+					else:
+						self.hamdict[word] = 1
 
-def test():
-	correct_times = 0
-	total = 215*300+119
-	testnum = total//5
-	global emaillist
-	for i in testindex:
-		logspam = 0.0
-		logham = 0.0
-		for word in emaillist[i]:
-			if word in spamdict.keys():
-				logspam += math.log(spamdict[word]/spamtimes)
-				#print(word,"'s spamfre:",spamdict[word])
-			else:
-				logspam += math.log(1/(spamtimes+2))
-				#print(word,"'s spamfre:",0)
-			if word in hamdict.keys():
-				logham += math.log(hamdict[word]/hamtimes)
-				#print(word,"'s hamfre:",hamdict[word])
-			else:
-				logham += math.log(1/(hamtimes+2))
-				#print(word,"'s hamfre:",0)
-		judge = True
-		logspam += math.log(spamtimes/(spamtimes+hamtimes))
-		logham += math.log(hamtimes/(hamtimes+spamtimes))
-		if logspam > logham:
+	def testone(self):
+		correct_times = 0
+		testnum = self.total * self.trainpercent/ 500
+		for i in self.testindex:
+			logspam = 0.0
+			logham = 0.0
+			for word in self.emaillist[i]:
+				if word in self.spamdict.keys():
+					logspam += math.log(self.spamdict[word] / self.spamtimes)
+					#logspam += math.log(self.spamdict[word] / self.spamtimes)
+				else:
+					#logspam += math.log(1 / (self.spamtimes + 2))
+					logspam += math.log(1 / (self.spamtimes + 2))
+				if word in self.hamdict.keys():
+					logham += math.log(self.hamdict[word] / self.hamtimes)
+				else:
+					logham += math.log(1 / (self.hamtimes + 2))
 			judge = True
-		else:
-			judge = False
-		if judge == True and labels[i] == '0':
-			correct_times += 1
-		if judge == False and labels[i] == '1':
-			correct_times += 1
-	print(correct_times/testnum)
+			logspam += math.log(self.spamtimes / (self.spamtimes + self.hamtimes))
+			logham += math.log(self.hamtimes / (self.hamtimes + self.spamtimes))
+			if logspam > logham:
+				judge = True
+			else:
+				judge = False
+			if judge == True and self.labels[i] == '0':
+				correct_times += 1
+			elif judge == False and self.labels[i] == '1':
+				correct_times += 1
+			else:
+				pass
+				#print(i)
+				#print(self.emaillist[i])
+		self.spamtimes = 0
+		self.hamtimes = 0
+		self.hamdict.clear()
+		self.spamdict.clear()
+		accuracy = correct_times / testnum
+		return accuracy
 
-decidetrain(908, 80)
-getlabels()
-getwordlist()
-trainer()
-test()
+	def test(self):
+		accuracy = 0
+		accuracylist = []
+		for i in range(5):
+			self.cut((i+1))
+			self.train()
+			print(self.hamtimes," ",self.spamtimes)
+			oneaccuracy = self.testone()
+			accuracy += oneaccuracy
+			accuracylist.append(oneaccuracy)
+		print(accuracylist)	
+		print(accuracy/5)
+
+def main():
+	import argparse
+
+	parser = argparse.ArgumentParser()
+	parser.add_argument("-n","--filename",type=str,default="trec06c-utf8")
+	parser.add_argument("-p","--percent",type=int,default=100)
+	parser.add_argument("-r","--randomseed",type=int,default=100)
+	args = parser.parse_args()
+
+	data = Dataset(args.filename)
+	trainer = Trainer(data)
+	trainer.decidetrain(args.randomseed,args.percent)
+	trainer.test()
+
+main()
 
 
 
