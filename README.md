@@ -20,7 +20,7 @@ There are four parameters that can be configured in the bash.
 Therefore, the program can be run like this:
 
 `python3 Bayes.py` This means that all configurable parameters are used in default value, which means the model will use 5-fold cross validation to make a test and add the feature.  
-`python3 Bayes.py -p 0.8` This means the program will train 80% of the dataset.
+`python3 Bayes.py -p 0.8` This means the program will train 80% of the dataset.    
 `python3 Bayes.py -r 233` This means the random seed will be changed into 2333
 
 ## Function Instruction
